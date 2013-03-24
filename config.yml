@@ -1,10 +1,12 @@
-hostname: scruffy.entropynet.net
+hostname: irc.server.tld
 ssl: off
 port: 6667
-nick: FoxServ
-username: fox
+nick: DemonReach
+username: DemonReach
 realname: DemonReach
 oper:
     username: opername
     password: operpass
-  
+channels:
+    - #demonreach
+    - #anope

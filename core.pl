@@ -4,14 +4,22 @@ use YAML qw(LoadFile);
 use Getopt::Long;
 use Data::Dumper;
 
+# Protocol Line
+use DemonReach::Protocol::ShadowIRCd;
+
+# Additional Modules.
+
+
 my $debug = '';
 my $verbose = '';
+my $testonly = '';
 my $configFile = 'config.yml';
 
 GetOptions(
     'verbose|v' => \$verbose, 
     'debug|d' => \$debug, 
-    'c|config=s' => \$configFile
+    'c|config=s' => \$configFile,
+    't|testonly' => \$testonly
 );
 
 sub verbprint {
@@ -21,8 +29,13 @@ sub verbprint {
 
 sub debugprint {
     my $stuff = shift;
-    print $stuff . "\n" if $debug;
+    print "\033[36m" . $stuff . "\033[0m \n" if $debug;
 }
+
+# testonly implies verbose and debug
+$verbose = 1 if $testonly;
+$debug = 1 if $testonly; 
+debugprint "CONFIG TEST MODE ACTIVATED, WILL NOT START AN IRC SESSION";
 
 debugprint "Debug mode activated";
 verbprint "Verbose mode activated";
@@ -40,6 +53,7 @@ my $port     = $configdata->{port};
 my $nick     = $configdata->{nick};
 my $realname = $configdata->{realname};
 my $username = $configdata->{username};
+my $channels = ($configdata->{channels});
 verbprint "Connecting to $hostname:$port as '$nick!~$username' with realname '$realname'";
 # if SSL is 'on', set $SSL to 1, otherwise, 0
 my $ssl = 0;
@@ -87,17 +101,31 @@ sub _default {
     return;
 }
 
+sub irc_001 {
+    my $sender = $_[SENDER];
+    my $irc = $sender->get_heap();
+    verbprint "Connected to ", $irc->server_name();
+    $irc->yield( oper => $operuser => $operpass);
+    # we join our channels
+    debugprint Dumper (@{$channels});
+    foreach(@{$channels}) { debugprint Dumper $_; $irc->yield( join => $_ ) }
+    return;
+}
 
-
+sub irc_snotice {
+    my ($sender, $what,$who) = @_[SENDER, ARG0, ARG1 ];
+    debugprint Dumper handle_snotice($what);
+    return;
+}
 
 # POE Session 
 POE::Session->create(
     package_states => [
-        main => [ qw(_default _start) ],
+        main => [ qw(_default _start irc_001 irc_snotice) ],
     ],
     heap => { irc => $irc },
 );
 
 # run the fucking bot.
-$poe_kernel->run();
+$poe_kernel->run() if !$testonly;
 
