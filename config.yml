@@ -1,5 +1,10 @@
-hostname: localhost
+hostname: scruffy.entropynet.net
+ssl: off
 port: 6667
-nick: Demonreach
-ircname: Demonreach
-username: Demonreach
+nick: FoxServ
+username: fox
+realname: DemonReach
+oper:
+    username: opername
+    password: operpass
+  
