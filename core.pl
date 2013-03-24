@@ -22,6 +22,7 @@ GetOptions(
     't|testonly' => \$testonly
 );
 
+# console log stuff
 sub verbprint {
     my $stuff = shift;
     print $stuff . "\n" if $verbose;   
@@ -30,6 +31,11 @@ sub verbprint {
 sub debugprint {
     my $stuff = shift;
     print "\033[36m" . $stuff . "\033[0m \n" if $debug;
+}
+
+
+sub ircLog {
+
 }
 
 # testonly implies verbose and debug
@@ -54,6 +60,7 @@ my $nick     = $configdata->{nick};
 my $realname = $configdata->{realname};
 my $username = $configdata->{username};
 my $channels = ($configdata->{channels});
+
 verbprint "Connecting to $hostname:$port as '$nick!~$username' with realname '$realname'";
 # if SSL is 'on', set $SSL to 1, otherwise, 0
 my $ssl = 0;
@@ -61,6 +68,12 @@ if ($configdata->{ssl} eq 'on') {
     $ssl = 1;
 } 
 verbprint ((sub {if ($ssl == 1) { return "SSL Enabled" } else { return "SSL Disabled" }})->());
+my $ignoreMOTD = 0;
+if ($configdata->{ignoreMOTD} eq 'on') {
+    $ignoreMOTD = 1;
+} 
+verbprint ((sub {if ($ignoreMOTD == 1) { return "Ignoring MOTD" } else { return "Not Ignoring MOTD" }})->());
+
 
 # get Oper creds.
 my $operuser = $configdata->{oper}->{username};
@@ -117,11 +130,28 @@ sub irc_snotice {
     debugprint Dumper handle_snotice($what);
     return;
 }
+sub irc_375 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
+
+sub irc_372 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
+
+sub irc_376 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
 
 # POE Session 
 POE::Session->create(
     package_states => [
-        main => [ qw(_default _start irc_001 irc_snotice) ],
+        main => [ qw(_default _start irc_001 irc_snotice irc_375 irc_376 irc_372) ],
     ],
     heap => { irc => $irc },
 );

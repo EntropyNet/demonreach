@@ -1,5 +1,6 @@
 hostname: irc.server.tld
 ssl: off
+ignoreMOTD: on
 port: 6667
 nick: DemonReach
 username: DemonReach
