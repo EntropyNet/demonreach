@@ -12,7 +12,7 @@ use DemonReach::Protocol::ShadowIRCd;
 
 # Additional Modules.
 use DemonReach::Logging::Plain; 
-#use DemonReach::Logging::Std;
+use DemonReach::Logging::Std;
 #use DemonReach::Logging::IRC
 
 # declerations
@@ -208,5 +208,5 @@ POE::Session->create(
 # run the fucking bot.
 addHandler('log',DemonReach::Logging::Plain->new(file => "test.log"));
 #addHandler('log',DemonReach::Logging::IRC->new($irc,'#anope'));
-#addHandler('log',DemonReach::Logging::Std->new());
+addHandler('log',DemonReach::Logging::Std->new());
 $poe_kernel->run() if !$testonly;
