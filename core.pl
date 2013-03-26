@@ -2,18 +2,29 @@
 use POE qw(Component::IRC Component::SSLify);
 use YAML qw(LoadFile);
 use Getopt::Long;
+use feature 'switch';
 use Data::Dumper;
+# base functions.
+use DemonReach::Base;
 
 # Protocol Line
 use DemonReach::Protocol::ShadowIRCd;
 
 # Additional Modules.
+use DemonReach::Logging::Plain; 
+#use DemonReach::Logging::Std;
+#use DemonReach::Logging::IRC
 
-
+# declerations
 my $debug = '';
 my $verbose = '';
 my $testonly = '';
 my $configFile = 'config.yml';
+my %irc_public_hooks = ();
+my %irc_private_hooks = ();
+my @statistics_handlers;
+my @logging_handlers;
+
 
 GetOptions(
     'verbose|v' => \$verbose, 
@@ -33,15 +44,50 @@ sub debugprint {
     print "\033[36m" . $stuff . "\033[0m \n" if $debug;
 }
 
-
-sub ircLog {
-
+# add a hook 
+sub addHook {
+    my $type = shift;
+    my $trigger = shift;
+    my $code = shift;
+    
+    given ($type) {
+        when('private') {
+            $irc_private_hooks{$trigger} = \$code;
+        }
+        when ('public') {
+            $irc_public_hooks{$trigger} = \$code;
+        }
+        
+    }
 }
+sub addHandler {
+    my $type = shift;
+    my $object = shift;
+
+    given ($type) {
+        when ('stats') {
+            push @statistics_handlers, $object;
+        }
+        when ('log') {
+            push @logging_handlers, $object;
+        }
+    }
+}
+
+sub dr_event_log {
+    my $data = shift;
+    my $target = shift;
+    
+    foreach (@logging_handlers){
+        $_->logEvent($data);
+    }
+}
+
 
 # testonly implies verbose and debug
 $verbose = 1 if $testonly;
 $debug = 1 if $testonly; 
-debugprint "CONFIG TEST MODE ACTIVATED, WILL NOT START AN IRC SESSION";
+debugprint ("CONFIG TEST MODE ACTIVATED, WILL NOT START AN IRC SESSION") if $testonly;
 
 debugprint "Debug mode activated";
 verbprint "Verbose mode activated";
@@ -110,7 +156,7 @@ sub _default {
             push ( @output, "'$arg'" );
         }
     }
-    verbprint join ' ', @output;
+    dr_event_log join ' ', @output;
     return;
 }
 
@@ -148,6 +194,9 @@ sub irc_376 {
     return;
 }
 
+sub irc_public {
+
+}
 # POE Session 
 POE::Session->create(
     package_states => [
@@ -157,5 +206,7 @@ POE::Session->create(
 );
 
 # run the fucking bot.
+addHandler('log',DemonReach::Logging::Plain->new(file => "test.log"));
+#addHandler('log',DemonReach::Logging::IRC->new($irc,'#anope'));
+#addHandler('log',DemonReach::Logging::Std->new());
 $poe_kernel->run() if !$testonly;
-
