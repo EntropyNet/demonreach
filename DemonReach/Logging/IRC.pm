@@ -7,24 +7,29 @@ our $VERSION = '0.01';
 my $poeHeap;
 =head1 NAME
 
-DemonReach:: - module for working with.
+DemonReach::Logging::IRC - module for logging to an IRC channel
 
 =head1 SYNOPSIS
  
+    # $irc is a PoCo::IRC instance
+    addHandler('log',DemonReach::Logging::IRC->new(irc => $irc, channel => "#demonreach-log"));
 
 =head1 DESCRIPTION
 
-This is a module for DemonReach, which uses these modules internally to 
-perform specific functions such as channel logging and such.
+Module for logging to IRC channels from demonreach core.
+
+This module is mostly provided as an example, and should not be used inside the main loghandler event,
+as this will flood the IRC channel with all events should the standard default be used. It is more 
+designed for you to use inside other handler groups that should log to IRC.
 
 =cut
 
-# handler modules are different, as they use an object approach.
 
 has 'irc' => (
     is => 'ro',
     required => 1,
 );
+
 has 'channel' => (
     is => 'ro',
     required => 1,
@@ -32,28 +37,25 @@ has 'channel' => (
 );
 =head2 Functions
 
-All the functions used by DemonReach are exported by default.
 
-=head3 functionname
+=head3 logEvent
 
-function description
+To be used from dr_log_event, This function handles log events from the core.
 
 =cut
-
 
 sub logEvent {
     my $self = shift;
     my $data = shift;
-    
+
     my $irc = $self->irc ;
     $irc->yield("privmsg",$self->channel,$data);
-
 }
 
-# code for module
 
 =head1 AUTHOR
 
+Joshua Theze (foxiepaws) <joshua.theze@gmail.com>
 
 =cut
 1;

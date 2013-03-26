@@ -10,15 +10,15 @@ our $VERSION = '0.01';
 
 =head1 NAME
 
-DemonReach:: - module for working with.
+DemonReach::Logging::Plain - module for logging to plaintext files.
 
 =head1 SYNOPSIS
  
+    addHandler('log',DemonReach::Logging::Plain->new(file=> core.log));
 
 =head1 DESCRIPTION
 
-This is a module for DemonReach, which uses these modules internally to 
-perform specific functions such as channel logging and such.
+
 
 =cut
 
@@ -33,21 +33,22 @@ my $fp;
 
 =head2 Functions
 
-All the functions used by DemonReach are exported by default.
-
-=head3 functionname
-
-function description
+Functions related to logging to plaintext files in DemonReach
 
 =cut
 
-# code for module
 
 sub BUILD {
     my $self = shift;
     open ($fp, ">>:encoding(UTF-8)",$self->{file});
 }
 
+=head3 logEvent
+All the functions used by Demonare exported by default.
+
+To be used from dr_log_event, This function handles log events from the core.
+
+=cut
 sub logEvent {
     my $self = shift;
     my $data = shift;
@@ -62,6 +63,7 @@ sub DEMOLISH {
 }
 =head1 AUTHOR
 
+Joshua Theze (foxiepaws) <joshua.theze@gmail.com>
 
 =cut
 1;

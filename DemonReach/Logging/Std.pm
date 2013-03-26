@@ -10,27 +10,23 @@ our $VERSION = '0.01';
 
 =head1 NAME
 
-DemonReach:: - module for working with.
+DemonReach::Logging::Std - module for logging to standard output.
 
 =head1 SYNOPSIS
- 
+
+    addHandler('log',DemonReach::Logging::Std->new());
 
 =head1 DESCRIPTION
 
-This is a module for DemonReach, which uses these modules internally to 
-perform specific functions such as channel logging and such.
 
 =cut
 
-# handler modules are different, as they use an object approach.
 
 =head2 Functions
 
-All the functions used by DemonReach are exported by default.
+=head3 logEvent
 
-=head3 functionname
-
-function description
+logs to std out and flushes.
 
 =cut
 
@@ -46,6 +42,7 @@ sub logEvent {
 
 =head1 AUTHOR
 
+Joshua Theze (foxiepaws) <joshua.theze@gmail.com>
 
 =cut
 1;
