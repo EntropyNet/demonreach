@@ -132,7 +132,8 @@ my $irc = POE::Component::IRC->spawn(
         port=> $port, 
         server => $hostname, 
         username => $username,
-        UseSSL => $ssl
+        UseSSL => $ssl,
+        useipv6 => 1
     ) or die("Couldn't spawn POE component $!");
 
 # start events
