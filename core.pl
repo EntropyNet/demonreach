@@ -2,18 +2,38 @@
 use POE qw(Component::IRC Component::SSLify);
 use YAML qw(LoadFile);
 use Getopt::Long;
+use feature 'switch';
 use Data::Dumper;
+# base functions.
+use DemonReach::Base;
 
+# Protocol Line
+use DemonReach::Protocol::ShadowIRCd;
+
+# Additional Modules.
+use DemonReach::Logging::Plain; 
+use DemonReach::Logging::Std;
+use DemonReach::Logging::IRC
+
+# declerations
 my $debug = '';
 my $verbose = '';
+my $testonly = '';
 my $configFile = 'config.yml';
+my %irc_public_hooks = ();
+my %irc_private_hooks = ();
+my @statistics_handlers;
+my %logging_handlers = ();
+
 
 GetOptions(
     'verbose|v' => \$verbose, 
     'debug|d' => \$debug, 
-    'c|config=s' => \$configFile
+    'c|config=s' => \$configFile,
+    't|testonly' => \$testonly
 );
 
+# console log stuff
 sub verbprint {
     my $stuff = shift;
     print $stuff . "\n" if $verbose;   
@@ -21,8 +41,57 @@ sub verbprint {
 
 sub debugprint {
     my $stuff = shift;
-    print $stuff . "\n" if $debug;
+    print "\033[36m" . $stuff . "\033[0m \n" if $debug;
 }
+
+# add a hook 
+sub addHook {
+    my $type = shift;
+    my $trigger = shift;
+    my $code = shift;
+    
+    given ($type) {
+        when('private') {
+            $irc_private_hooks{$trigger} = \$code;
+        }
+        when ('public') {
+            $irc_public_hooks{$trigger} = \$code;
+        }
+        
+    }
+}
+sub addHandler {
+    my $type = shift;
+    my $object = shift;
+    my $target = shift;
+    $target = "main" if !$target;
+
+    given ($type) {
+        when ('stats') {
+            push @statistics_handlers, $object;
+        }
+        when ('log') {
+            push @{ $logging_handlers{$target} } , $object;
+        }
+    }
+}
+
+sub dr_event_log {
+    my $data = shift;
+    my $target = shift;
+    $target = 'main' if not $target; 
+    foreach (split(/,/,$target)) {  
+        foreach (@{$logging_handlers{$_}}){
+            $_->logEvent($data);
+       }
+    }
+}
+
+
+# testonly implies verbose and debug
+$verbose = 1 if $testonly;
+$debug = 1 if $testonly; 
+debugprint ("CONFIG TEST MODE ACTIVATED, WILL NOT START AN IRC SESSION") if $testonly;
 
 debugprint "Debug mode activated";
 verbprint "Verbose mode activated";
@@ -40,6 +109,8 @@ my $port     = $configdata->{port};
 my $nick     = $configdata->{nick};
 my $realname = $configdata->{realname};
 my $username = $configdata->{username};
+my $channels = ($configdata->{channels});
+
 verbprint "Connecting to $hostname:$port as '$nick!~$username' with realname '$realname'";
 # if SSL is 'on', set $SSL to 1, otherwise, 0
 my $ssl = 0;
@@ -47,6 +118,12 @@ if ($configdata->{ssl} eq 'on') {
     $ssl = 1;
 } 
 verbprint ((sub {if ($ssl == 1) { return "SSL Enabled" } else { return "SSL Disabled" }})->());
+my $ignoreMOTD = 0;
+if ($configdata->{ignoreMOTD} eq 'on') {
+    $ignoreMOTD = 1;
+} 
+verbprint ((sub {if ($ignoreMOTD == 1) { return "Ignoring MOTD" } else { return "Not Ignoring MOTD" }})->());
+
 
 # get Oper creds.
 my $operuser = $configdata->{oper}->{username};
@@ -59,7 +136,8 @@ my $irc = POE::Component::IRC->spawn(
         port=> $port, 
         server => $hostname, 
         username => $username,
-        UseSSL => $ssl
+        UseSSL => $ssl,
+        useipv6 => 1
     ) or die("Couldn't spawn POE component $!");
 
 # start events
@@ -83,21 +161,58 @@ sub _default {
             push ( @output, "'$arg'" );
         }
     }
-    verbprint join ' ', @output;
+    dr_event_log join ' ', @output;
     return;
 }
 
+sub irc_001 {
+    my $sender = $_[SENDER];
+    my $irc = $sender->get_heap();
+    verbprint "Connected to ", $irc->server_name();
+    $irc->yield( oper => $operuser => $operpass);
+    # we join our channels
+    debugprint Dumper (@{$channels});
+    foreach(@{$channels}) { debugprint Dumper $_; $irc->yield( join => $_ ) }
+    return;
+}
 
+sub irc_snotice {
+    my ($sender, $what,$who) = @_[SENDER, ARG0, ARG1 ];
+    debugprint Dumper handle_snotice($what);
+    dr_event_log("Got snotice $what", 'irc,main');
+    return;
+}
+sub irc_375 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
 
+sub irc_372 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
 
+sub irc_376 {
+    my ($sender, $what, $who) = @_[SENDER, ARG0, ARG1];
+    (verbprint ("$who: $what")) if !$ignoreMOTD;
+    return;
+}
+
+sub irc_public {
+
+}
 # POE Session 
 POE::Session->create(
     package_states => [
-        main => [ qw(_default _start) ],
+        main => [ qw(_default _start irc_001 irc_snotice irc_375 irc_376 irc_372) ],
     ],
     heap => { irc => $irc },
 );
 
 # run the fucking bot.
-$poe_kernel->run();
-
+addHandler('log',DemonReach::Logging::Plain->new(file => "test.log"));
+addHandler('log',DemonReach::Logging::IRC->new(irc => $irc,channel=>"#anope"),"irc");
+addHandler('log',DemonReach::Logging::Std->new());
+$poe_kernel->run() if !$testonly;
