@@ -116,13 +116,16 @@ verbprint "Connecting to $hostname:$port as '$nick!~$username' with realname '$r
 my $ssl = 0;
 if ($configdata->{ssl} eq 'on') {
     $ssl = 1;
+    verbprint ("SSL Enabled");
 } 
-verbprint ((sub {if ($ssl == 1) { return "SSL Enabled" } else { return "SSL Disabled" }})->());
+verbprint ("SSL Disabled") if !$ssl;
+
 my $ignoreMOTD = 0;
 if ($configdata->{ignoreMOTD} eq 'on') {
     $ignoreMOTD = 1;
+    verbprint ("Ignoring MOTD");
 } 
-verbprint ((sub {if ($ignoreMOTD == 1) { return "Ignoring MOTD" } else { return "Not Ignoring MOTD" }})->());
+verbprint ("Not Ignoring MOTD" ) if !$ignoreMOTD;
 
 
 # get Oper creds.
