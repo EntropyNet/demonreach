@@ -23,7 +23,7 @@ my $configFile = 'config.yml';
 my %irc_public_hooks = ();
 my %irc_private_hooks = ();
 my @statistics_handlers;
-my @logging_handlers;
+my %logging_handlers = ();
 
 
 GetOptions(
@@ -63,13 +63,15 @@ sub addHook {
 sub addHandler {
     my $type = shift;
     my $object = shift;
+    my $target = shift;
+    $target = "main" if !$target;
 
     given ($type) {
         when ('stats') {
             push @statistics_handlers, $object;
         }
         when ('log') {
-            push @logging_handlers, $object;
+            push @{ $logging_handlers{$target} } , $object;
         }
     }
 }
@@ -77,9 +79,11 @@ sub addHandler {
 sub dr_event_log {
     my $data = shift;
     my $target = shift;
-    
-    foreach (@logging_handlers){
-        $_->logEvent($data);
+    $target = 'main' if not $target; 
+    foreach (split(/,/,$target)) {  
+        foreach (@{$logging_handlers{$_}}){
+            $_->logEvent($data);
+       }
     }
 }
 
@@ -175,6 +179,7 @@ sub irc_001 {
 sub irc_snotice {
     my ($sender, $what,$who) = @_[SENDER, ARG0, ARG1 ];
     debugprint Dumper handle_snotice($what);
+    dr_event_log("Got snotice $what", 'irc,main');
     return;
 }
 sub irc_375 {
@@ -208,6 +213,6 @@ POE::Session->create(
 
 # run the fucking bot.
 addHandler('log',DemonReach::Logging::Plain->new(file => "test.log"));
-addHandler('log',DemonReach::Logging::IRC->new(irc => $irc,channel=>"#anope"));
+addHandler('log',DemonReach::Logging::IRC->new(irc => $irc,channel=>"#anope"),"irc");
 addHandler('log',DemonReach::Logging::Std->new());
 $poe_kernel->run() if !$testonly;
