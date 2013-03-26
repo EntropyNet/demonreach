@@ -1,4 +1,6 @@
-#use IRC::Message::Object;
+#!/usr/bin/env perl
+use strict;
+use warnings;
 use POE qw(Component::IRC Component::SSLify);
 use YAML qw(LoadFile);
 use Getopt::Long;
@@ -13,7 +15,7 @@ use DemonReach::Protocol::ShadowIRCd;
 # Additional Modules.
 use DemonReach::Logging::Plain; 
 use DemonReach::Logging::Std;
-use DemonReach::Logging::IRC
+use DemonReach::Logging::IRC;
 
 # declerations
 my $debug = '';
@@ -21,10 +23,10 @@ my $verbose = '';
 my $testonly = '';
 my $configFile = 'config.yml';
 my %irc_public_hooks = ();
-my %irc_private_hooks = ();
+my $irc_private_hooks = {};
 my @statistics_handlers;
 my %logging_handlers = ();
-
+my %stack; # temp variable place
 
 GetOptions(
     'verbose|v' => \$verbose, 
@@ -52,7 +54,7 @@ sub addHook {
     
     given ($type) {
         when('private') {
-            $irc_private_hooks{$trigger} = \$code;
+            $irc_private_hooks->{$trigger} = $code;
         }
         when ('public') {
             $irc_public_hooks{$trigger} = \$code;
@@ -203,13 +205,67 @@ sub irc_376 {
     return;
 }
 
-sub irc_public {
 
+sub register_stats {
+    my $statschar = shift;
+    my $id = shift;   
+    my $server = shift;
+    $server = "" if not $server;
+    $stack{$id} = ();
+    if (not $stack{cid}) {
+        $stack{cid} = $id;
+        $irc->yield('stats',$statschar,$server);
+        return;
+    } else { 
+        return -1;
+    }
 }
+
+sub irc_219 {
+    handle_stats($stack{$stack{cid}});
+    $stack{cid} = undef;
+}
+sub irc_211 {
+    my ($sender, $where, $what) = @_[SENDER, ARG0, ARG1];
+    push @{$stack{$stack{cid}}}, $what;
+}
+
+
+
+sub irc_msg {
+    my ($sender, $who, $what) = @_[SENDER,ARG0,ARG2];
+    print $what;
+    my $irc = $sender->get_heap();
+    my ($nick,$host) = split /!/, $who;
+    verbprint "what: $what";
+    verbprint "who: $who";
+    # now the fun of hooks...
+    my @tokenized = split / /, $what;
+    verbprint Dumper @tokenized;
+    if (exists $irc_private_hooks->{$tokenized[0]}) {
+        print "what!!!!";
+        $irc_private_hooks->{$tokenized[0]}->($irc,$who,@tokenized[1 .. $#tokenized]);
+    } else { 
+        $irc->yield('notice',$nick,"Invalid Command");
+    }
+}
+
+sub somecode {
+    my ($irc, $who,$statschar,$server) = @_[0,1,2,3];
+    if(register_stats($statschar,time(),$server) == -1) {
+        my ($nick,$host) = split /!/, $who;
+        $irc->yield('notice',$nick,"Processing Another Stats Query");
+    }
+}
+sub handle_stats {
+    my $crap = shift;
+    print Dumper $crap;
+}
+addHook('private', 'stats', \&somecode);
 # POE Session 
 POE::Session->create(
     package_states => [
-        main => [ qw(_default _start irc_001 irc_snotice irc_375 irc_376 irc_372) ],
+        main => [ qw(_default _start irc_001 irc_snotice irc_375 irc_376 irc_372 irc_msg irc_211 irc_219) ],
     ],
     heap => { irc => $irc },
 );
@@ -219,3 +275,5 @@ addHandler('log',DemonReach::Logging::Plain->new(file => "test.log"));
 addHandler('log',DemonReach::Logging::IRC->new(irc => $irc,channel=>"#anope"),"irc");
 addHandler('log',DemonReach::Logging::Std->new());
 $poe_kernel->run() if !$testonly;
+
+
