@@ -62,8 +62,15 @@ sub handle_snotice {
             my $data = { type => 'oper', nick => $1, hostmask => $2 };
             return $data;
         }
+        when (/Received KILL/) {
+            my @r = $raw =~ /Received KILL message for\s(.*)\sFrom\s(.*)\sPath:\s(.*)\s\((.*)\)/;
+            #my $n = $r[0] s/[!@]/!/r;
+            my ($nick, $host) = split /!/,$r[0];
+            my $data = { type => 'kill', nick => $nick, hostmask => $host, oper => $r[1], server => $r[2], reason => $r[3] };
+            return $data;
+        }
         default {
-            return {type => 'unhandled'};
+            return {type => 'unhandled', raw=> $raw};
         }
     }
 }
